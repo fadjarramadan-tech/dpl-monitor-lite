@@ -1568,10 +1568,11 @@
         }
 
         window.onload = function() {
-            lucide.createIcons();
-            // Default load diarahkan ke 'Wilayah' agar aman dari bypass refresh halaman
-            handleRoleChange("Wilayah"); 
-            loadDataFromAPI(); 
+            <select id="role-selector" onchange="handleRoleChange(this.value)" class="bg-slate-900 text-xs text-white font-bold py-1 px-2 rounded focus:outline-none focus:ring-1 focus:ring-bni-orange border-none cursor-pointer">
+    <!-- Ubah urutan atau tambahkan atribut selected pada Kantor Wilayah -->
+    <option value="Wilayah" selected>Kantor Wilayah (User)</option>
+    <option value="NSD">Divisi NSD (Admin)</option>
+</select>
         }
     </script>
 </body>
