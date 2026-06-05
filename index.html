@@ -1568,12 +1568,23 @@
         }
 
         window.onload = function() {
-            <select id="role-selector" onchange="handleRoleChange(this.value)" class="bg-slate-900 text-xs text-white font-bold py-1 px-2 rounded focus:outline-none focus:ring-1 focus:ring-bni-orange border-none cursor-pointer">
-    <!-- Ubah urutan atau tambahkan atribut selected pada Kantor Wilayah -->
-    <option value="Wilayah" selected>Kantor Wilayah (User)</option>
-    <option value="NSD">Divisi NSD (Admin)</option>
-</select>
-        }
+    lucide.createIcons();
+    
+    // 1. Set default pertama kali buka langsung ke role Wilayah
+    handleRoleChange("Wilayah"); 
+    document.getElementById('role-selector').value = "Wilayah";
+
+    // 2. Cek memori lokal apakah ada riwayat tab terakhir sebelum di-refresh
+    const lastActiveTab = localStorage.getItem('activeDPLTab');
+    if (lastActiveTab && ['dashboard', 'workspace', 'report', 'instructions'].includes(lastActiveTab)) {
+        switchTab(lastActiveTab); 
+    } else {
+        switchTab('dashboard'); 
+    }
+
+    // Muat data utama dari Cloud SheetDB
+    loadDataFromAPI(); 
+} // <-- Ditutup dengan kurung kurawal yang rapi
     </script>
 </body>
 </html>
