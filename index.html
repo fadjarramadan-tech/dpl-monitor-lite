@@ -885,6 +885,7 @@
 
     <!-- APPLICATION LOGIC / JAVASCRIPT STATE ENGINE -->
     <script>
+        <script>
         // Endpoint SheetDB API Anda
         const API_URL = "https://sheetdb.io/api/v1/z1j8a6iowxmhx";
 
@@ -894,13 +895,14 @@
         let assets = [];
         let bulkSelection = [];
         let filterWilayah = "ALL";
-        let currentRole = "NSD"; 
+        let currentRole = "Wilayah"; // Default aman ke Wilayah
 
         function triggerNotification(message, type = 'success') {
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toast-message');
             const toastIcon = document.getElementById('toast-icon');
             
+            if(!toast || !toastMessage || !toastIcon) return;
             toastMessage.textContent = message;
             
             if (type === 'error') {
@@ -918,8 +920,7 @@
             }, 3500);
         }
 
-        // --- FUNGSI MEMUAT DATA DARI SHEETDB (GET) ---
-       // --- FUNGSI MERIVASI DATA DARI SHEETDB (GET) ---
+        // --- FUNGSI MERIVASI DATA DARI SHEETDB (GET) ---
         async function loadDataFromAPI() {
             triggerNotification("Memuat data dari Google Sheets...", "success");
             try {
@@ -928,6 +929,7 @@
                 const data = await response.json();
                 
                 assets = data.map(item => {
+                    // Proteksi konversi nilai isConfirmed dari Google Sheets agar terbaca Boolean asli
                     let confirmedCheck = false;
                     if (item.isConfirmed) {
                         const strVal = String(item.isConfirmed).toLowerCase().trim();
@@ -936,7 +938,7 @@
                         }
                     }
 
-                    // --- LOGIKA BARU: DETEKSI JENIS ASET (BANGUNAN, KENDARAAN, ATAU INVENTARIS) ---
+                    // DETEKSI JENIS ASET SECARA DINAMIS
                     let jenis = item.jenisAset || "Inventaris";
                     const ket1Low = String(item.ket1 || "").toLowerCase();
                     const ket2Low = String(item.ket2 || "").toLowerCase();
@@ -978,7 +980,7 @@
                         wilayah: item.wilayah || "Wilayah Kerja",
                         hargaPerolehan: parseFloat(item.hargaPerolehan) || 0,
                         perusahaan: item.perusahaan || "",
-                        jenisAset: jenis, // Menggunakan variabel jenis hasil filter dinamis di atas
+                        jenisAset: jenis,
                         statusProyek: item.statusProyek || "",
                         timeline: item.timeline || "",
                         kategoriAkuntansi: item.kategoriAkuntansi || "",
@@ -995,7 +997,7 @@
             }
         }
 
-        // --- FUNGSI UPDATE DATA INDIVIDU KE SHEETDB (PATCH) ---
+        // --- FUNGSI UPDATE DATA KE SHEETDB (PATCH via SheetDB) ---
         async function updateAssetToAPI(id, updatedFields) {
             try {
                 const payload = {
@@ -1003,7 +1005,7 @@
                     timeline: updatedFields.timeline,
                     kategoriAkuntansi: updatedFields.kategoriAkuntansi,
                     keteranganTindakLanjut: updatedFields.keteranganTindakLanjut,
-                    isConfirmed: "true" 
+                    isConfirmed: "true"
                 };
 
                 const response = await fetch(`${API_URL}/id/${id}`, {
@@ -1025,13 +1027,12 @@
             }
         }
 
-        // --- MODIFIKASI: PROTEKSI AKSES ROLE DENGAN PROMPT PASSWORD ---
+        // --- PROTEKSI AKSES ROLE DENGAN PROMPT PASSWORD ---
         function handleRoleChange(role) {
             if (role === 'NSD') {
                 const inputPassword = prompt("Masukkan Password Otoritas Akses Divisi NSD:");
                 if (inputPassword !== ADMIN_PASSWORD) {
                     alert("Akses Ditolak: Password yang Anda masukkan salah!");
-                    // Paksa dropdown kembali memilih 'Wilayah'
                     document.getElementById('role-selector').value = "Wilayah";
                     currentRole = "Wilayah";
                     setRoleUIElements(false);
@@ -1044,30 +1045,19 @@
             refreshAppUI();
         }
 
-        // Fungsi pembantu untuk mengatur visibilitas elemen berdasarkan hak akses role
         function setRoleUIElements(isAdmin) {
             const alertText = document.getElementById('role-alert-text');
             const alertBanner = document.getElementById('role-alert-banner');
             const navUploadBtn = document.getElementById('btn-nav-upload-csv');
-            const sidebarUploadBtn = document.getElementById('btn-sidebar-upload');
-            const sidebarRestoreBtn = document.getElementById('btn-sidebar-restore');
 
             if (isAdmin) {
-                alertBanner.className = "bg-blue-50 border-l-4 border-blue-500 rounded-xl p-4 mb-6 shadow-sm flex items-center justify-between no-print";
-                alertText.innerHTML = "Saat ini Anda menggunakan hak akses penuh <strong>Divisi NSD (Admin)</strong>. Semua fitur diaktifkan.";
-                navUploadBtn.classList.remove('hidden');
-                navUploadBtn.classList.add('flex');
-                if (sidebarUploadBtn) sidebarUploadBtn.classList.remove('hidden');
-                if (sidebarRestoreBtn) sidebarRestoreBtn.classList.remove('hidden');
-                triggerNotification("Akses admin diaktifkan (Divisi NSD)");
+                if(alertBanner) alertBanner.className = "bg-blue-50 border-l-4 border-blue-500 rounded-xl p-4 mb-6 shadow-sm flex items-center justify-between no-print";
+                if(alertText) alertText.innerHTML = "Saat ini Anda menggunakan hak akses penuh <strong>Divisi NSD (Admin)</strong>. Semua fitur diaktifkan.";
+                if(navUploadBtn) { navUploadBtn.classList.remove('hidden'); navUploadBtn.classList.add('flex'); }
             } else {
-                alertBanner.className = "bg-amber-50 border-l-4 border-amber-500 rounded-xl p-4 mb-6 shadow-sm flex items-center justify-between no-print";
-                alertText.innerHTML = "Saat ini Anda masuk sebagai <strong>Kantor Wilayah (User)</strong>. Mengonfirmasi progres aset DPL Wilayah Anda.";
-                navUploadBtn.classList.remove('flex');
-                navUploadBtn.classList.add('hidden');
-                if (sidebarUploadBtn) sidebarUploadBtn.classList.add('hidden');
-                if (sidebarRestoreBtn) sidebarRestoreBtn.classList.add('hidden');
-                triggerNotification("Mode Akses Kantor Wilayah Aktif");
+                if(alertBanner) alertBanner.className = "bg-amber-50 border-l-4 border-amber-500 rounded-xl p-4 mb-6 shadow-sm flex items-center justify-between no-print";
+                if(alertText) alertText.innerHTML = "Saat ini Anda masuk sebagai <strong>Kantor Wilayah (User)</strong>. Mengonfirmasi progres aset DPL Wilayah Anda.";
+                if(navUploadBtn) { navUploadBtn.classList.remove('flex'); navUploadBtn.classList.add('hidden'); }
             }
         }
 
@@ -1080,12 +1070,12 @@
         }
 
         function isCritical(asset) {
-    if (asset.jenisAset === 'Bangunan' || asset.kelas === '0021') {
-      return asset.aging > 360;
-    } else {
-      return asset.aging > 180; // Kendaraan otomatis akan masuk ke sini (>180 Hari dianggap kritis)
-    }
-}
+            if (asset.jenisAset === 'Bangunan' || asset.kelas === '0021') {
+              return asset.aging > 360;
+            } else {
+              return asset.aging > 180;
+            }
+        }
 
         function refreshAppUI() {
             calculateMetricsAndProgress();
@@ -1419,7 +1409,7 @@
             renderLedgerTable();
         }
 
-        // --- PEMBARUAN MASSAL KE CLOUD VIA SINKRONISASI API ---
+        // --- FUNGSI UPDATE MASSAL CLOUD ---
         async function handleBulkUpdate(status) {
             if (currentRole !== 'NSD') return;
             triggerNotification("Memproses update massal ke cloud...");
@@ -1445,20 +1435,10 @@
             await loadDataFromAPI(); 
         }
 
-        function updateBulkPanelUI() {
-            const panel = document.getElementById('bulk-actions-panel');
-            if(!panel) return;
-            document.getElementById('selected-assets-count').textContent = bulkSelection.length;
-            if (bulkSelection.length > 0 && currentRole === 'NSD') panel.classList.remove('hidden');
-            else panel.classList.add('hidden');
-        }
-
-        function clearBulkSelection() { bulkSelection = []; renderLedgerTable(); }
-
-        // --- MODIFIKASI: UTILITY EKSPOR HASIL REAL-TIME SESUAI SPREADSHEET ---
+        // --- UTILITY EKSPOR HASIL REAL-TIME ---
         function handleExportCSV() {
             if (assets.length === 0) {
-                triggerNotification("Gagal ekspor: Tidak ada data aset yang tersedia.", "error");
+                triggerNotification("Gagal ekspor: Tidak ada data aset.", "error");
                 return;
             }
 
@@ -1470,32 +1450,13 @@
 
             const csvRows = assets.map(a => {
               return [
-                a.id,
-                a.entity,
-                a.unit,
-                a.kelas,
-                `"${a.nomorAset}"`,
-                `"${a.nib}"`,
-                a.tglPerolehan,
-                a.aging,
-                `"${a.range}"`,
-                `"${a.jenisAset}"`,
-                `"${a.ket1.replace(/"/g, '""')}"`,
-                `"${a.ket2.replace(/"/g, '""')}"`,
-                `"${a.ket3.replace(/"/g, '""')}"`,
-                `"${a.lokasi.replace(/"/g, '""')}"`,
-                `"${a.wilayah}"`,
-                a.hargaPerolehan,
-                `"${a.perusahaan.replace(/"/g, '""')}"`,
-                `"${a.statusProyek || 'BELUM KONFIRMASI'}"`,
-                `"${a.timeline || '-'}"`,
-                `"${a.kategoriAkuntansi || '-'}"`,
-                `"${a.keteranganTindakLanjut || '-'}"`,
-                a.isConfirmed ? "TRUE" : "FALSE"
+                a.id, a.entity, a.unit, a.kelas, `"${a.nomorAset}"`, `"${a.nib}"`, a.tglPerolehan, a.aging, `"${a.range}"`, `"${a.jenisAset}"`,
+                `"${a.ket1.replace(/"/g, '""')}"`, `"${a.ket2.replace(/"/g, '""')}"`, `"${a.ket3.replace(/"/g, '""')}"`, `"${a.lokasi.replace(/"/g, '""')}"`,
+                `"${a.wilayah}"`, a.hargaPerolehan, `"${a.perusahaan.replace(/"/g, '""')}"`, `"${a.statusProyek || 'BELUM KONFIRMASI'}"`,
+                `"${a.timeline || '-'}"`, `"${a.kategoriAkuntansi || '-'}"`, `"${a.keteranganTindakLanjut || '-'}"`, a.isConfirmed ? "TRUE" : "FALSE"
               ].join(",");
             });
 
-            // Format BOM UTF-8 agar Excel langsung membaca karakter dan tanda baca dengan rapi
             const csvContent = "\uFEFF" + [csvHeaders, ...csvRows].join("\n");
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
@@ -1506,8 +1467,18 @@
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            triggerNotification("File CSV Laporan akhir berhasil diekspor dari cloud!");
+            triggerNotification("File CSV Berhasil diekspor!");
         }
+
+        function updateBulkPanelUI() {
+            const panel = document.getElementById('bulk-actions-panel');
+            if(!panel) return;
+            document.getElementById('selected-assets-count').textContent = bulkSelection.length;
+            if (bulkSelection.length > 0 && currentRole === 'NSD') panel.classList.remove('hidden');
+            else panel.classList.add('hidden');
+        }
+
+        function clearBulkSelection() { bulkSelection = []; renderLedgerTable(); }
 
         function renderOfficialLetterDraft() {
             const doneAssets = assets.filter(a => a.statusProyek === 'Done');
@@ -1565,26 +1536,29 @@
             });
             const targetContent = document.getElementById(`tab-content-${targetTab}`);
             if(targetContent) targetContent.classList.remove('hidden');
+
+            localStorage.setItem('activeDPLTab', targetTab);
         }
 
+        // --- SISTEM INISIALISASI ---
         window.onload = function() {
-    lucide.createIcons();
-    
-    // 1. Set default pertama kali buka langsung ke role Wilayah
-    handleRoleChange("Wilayah"); 
-    document.getElementById('role-selector').value = "Wilayah";
+            lucide.createIcons();
+            
+            // Set default langsung ke role Wilayah saat dibuka pertama kali
+            handleRoleChange("Wilayah"); 
+            document.getElementById('role-selector').value = "Wilayah";
 
-    // 2. Cek memori lokal apakah ada riwayat tab terakhir sebelum di-refresh
-    const lastActiveTab = localStorage.getItem('activeDPLTab');
-    if (lastActiveTab && ['dashboard', 'workspace', 'report', 'instructions'].includes(lastActiveTab)) {
-        switchTab(lastActiveTab); 
-    } else {
-        switchTab('dashboard'); 
-    }
+            const lastActiveTab = localStorage.getItem('activeDPLTab');
+            if (lastActiveTab && ['dashboard', 'workspace', 'report', 'instructions'].includes(lastActiveTab)) {
+                switchTab(lastActiveTab); 
+            } else {
+                switchTab('dashboard'); 
+            }
 
-    // Muat data utama dari Cloud SheetDB
-    loadDataFromAPI(); 
-} // <-- Ditutup dengan kurung kurawal yang rapi
+            loadDataFromAPI(); 
+        }
     </script>
+</body>
+</html>
 </body>
 </html>
