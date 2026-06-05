@@ -883,7 +883,7 @@
     </footer>
 
     <!-- APPLICATION LOGIC / JAVASCRIPT STATE ENGINE -->
-        <script>
+    <script>
         // Endpoint SheetDB API Anda
         const API_URL = "https://sheetdb.io/api/v1/z1j8a6iowxmhx";
 
@@ -956,37 +956,35 @@
             }
         }
 
-        // --- FUNGSI UPDATE DATA KE SHEETDB (PUT/PATCH via SheetDB) ---
-async function updateAssetToAPI(id, updatedFields) {
-    try {
-        const payload = {
-            statusProyek: updatedFields.statusProyek,
-            timeline: updatedFields.timeline,
-            kategoriAkuntansi: updatedFields.kategoriAkuntansi,
-            keteranganTindakLanjut: updatedFields.keteranganTindakLanjut,
-            isConfirmed: "true" // Disimpan sebagai string ke Excel agar konsisten
-        };
+        // --- FUNGSI UPDATE DATA KE SHEETDB (PATCH via SheetDB) ---
+        async function updateAssetToAPI(id, updatedFields) {
+            try {
+                const payload = {
+                    statusProyek: updatedFields.statusProyek,
+                    timeline: updatedFields.timeline,
+                    kategoriAkuntansi: updatedFields.kategoriAkuntansi,
+                    keteranganTindakLanjut: updatedFields.keteranganTindakLanjut,
+                    isConfirmed: "true"
+                };
 
-        const response = await fetch(`${API_URL}/id/${id}`, {
-            method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ data: payload })
-        });
+                const response = await fetch(`${API_URL}/id/${id}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ data: payload })
+                });
 
-        if (!response.ok) throw new Error("Gagal menyimpan data ke API.");
-        
-        triggerNotification("Konfirmasi Wilayah Berhasil Tersimpan di Cloud!");
-        
-        // --- PERBAIKAN: Muat ulang data langsung dari Cloud agar dashboard & progress bar sinkron ---
-        await loadDataFromAPI(); 
-        
-    } catch (error) {
-        console.error(error);
-        triggerNotification("Gagal Sinkronisasi Cloud. Coba lagi.", "error");
-    }
-}
+                if (!response.ok) throw new Error("Gagal menyimpan data ke API.");
+                
+                triggerNotification("Konfirmasi Wilayah Berhasil Tersimpan di Cloud!");
+                await loadDataFromAPI(); 
+                
+            } catch (error) {
+                console.error(error);
+                triggerNotification("Gagal Sinkronisasi Cloud. Coba lagi.", "error");
+            }
+        }
 
         function handleRoleChange(role) {
             currentRole = role;
@@ -1272,7 +1270,7 @@ async function updateAssetToAPI(id, updatedFields) {
                     <td class="py-3 px-4">${asset.jenisAset}</td>
                     <td class="py-3 px-4 text-slate-700 truncate max-w-xs">${asset.ket1}</td>
                     <td class="py-3 px-4 text-bni-teal font-bold">${asset.wilayah}</td>
-                    <td class="py-3 px-4 text-right font-bold text-red-650">${asset.aging} Hari</td>
+                    <td class="py-3 px-4 text-right font-bold text-red-655">${asset.aging} Hari</td>
                     <td class="py-3 px-4 text-right font-semibold">${formatIDR(asset.hargaPerolehan)}</td>
                     <td class="py-3 px-4 text-center">
                       <button onclick="openConfirmationModal('${asset.id}')" class="bg-bni-teal text-white font-bold py-1 px-2.5 rounded text-xs">Konfirmasi</button>
@@ -1327,7 +1325,6 @@ async function updateAssetToAPI(id, updatedFields) {
             document.getElementById('confirmation-modal').classList.add('hidden');
         }
 
-        // --- INTERSEPSI SUBMIT FORM PINDAH KE API ---
         async function saveModalConfirmation(e) {
             e.preventDefault();
             const id = document.getElementById('modal-asset-id').value;
@@ -1338,7 +1335,6 @@ async function updateAssetToAPI(id, updatedFields) {
 
             closeConfirmationModal();
             
-            // Simpan langsung ke cloud
             await updateAssetToAPI(id, {
                 statusProyek, timeline, kategoriAkuntansi, keteranganTindakLanjut
             });
@@ -1356,6 +1352,32 @@ async function updateAssetToAPI(id, updatedFields) {
             renderLedgerTable();
         }
 
+        // --- PEMBARUAN FUNGSI MASSAL (SUDAH BERSIH DAN STRUKTURAL) ---
+        async function handleBulkUpdate(status) {
+            if (currentRole !== 'NSD') return;
+            triggerNotification("Memproses update massal ke cloud...");
+            
+            let recommendedCategory = status === 'Cancel' ? 'Beban Opex' : 'Kapitalisasi Aset Tetap';
+            
+            for (let id of bulkSelection) {
+                await fetch(`${API_URL}/id/${id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        data: {
+                            statusProyek: status,
+                            kategoriAkuntansi: recommendedCategory,
+                            isConfirmed: "true"
+                        }
+                    })
+                });
+            }
+
+            bulkSelection = [];
+            triggerNotification("Selesai memperbarui data massal!");
+            await loadDataFromAPI(); 
+        }
+
         function updateBulkPanelUI() {
             const panel = document.getElementById('bulk-actions-panel');
             document.getElementById('selected-assets-count').textContent = bulkSelection.length;
@@ -1364,44 +1386,6 @@ async function updateAssetToAPI(id, updatedFields) {
         }
 
         function clearBulkSelection() { bulkSelection = []; renderLedgerTable(); }
-
-        // --- MASS UPDATE VIA SHEETDB MULTIPLE REQUESTS ---
-async function handleBulkUpdate(status) {
-    if (currentRole !== 'NSD') return;
-    triggerNotification("Memproses update massal ke cloud...");
-    
-    let recommendedCategory = status === 'Cancel' ? 'Beban Opex' : 'Kapitalisasi Aset Tetap';
-    
-    // --- MASS UPDATE VIA SHEETDB MULTIPLE REQUESTS ---
-async function handleBulkUpdate(status) {
-    if (currentRole !== 'NSD') return;
-    triggerNotification("Memproses update massal ke cloud...");
-    
-    let recommendedCategory = status === 'Cancel' ? 'Beban Opex' : 'Kapitalisasi Aset Tetap';
-    
-    // Melakukan update satu per satu ke API berdasarkan aset yang dicentang
-    for (let id of bulkSelection) {
-        await fetch(`${API_URL}/id/${id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                data: {
-                    statusProyek: status,
-                    kategoriAkuntansi: recommendedCategory,
-                    isConfirmed: "true"
-                }
-            })
-        });
-    }
-
-    // Semua proses di bawah ini dilakukan tepat setelah loop selesai, 
-    // dan berada di dalam satu kurung fungsi yang sama.
-    bulkSelection = [];
-    triggerNotification("Selesai memperbarui data massal!");
-    
-    // Tarik data terbaru untuk merefresh chart/progress
-    await loadDataFromAPI(); 
-}
 
         function renderOfficialLetterDraft() {
             const doneAssets = assets.filter(a => a.statusProyek === 'Done');
@@ -1448,11 +1432,12 @@ async function handleBulkUpdate(status) {
             document.getElementById(`tab-content-${targetTab}`).classList.remove('hidden');
         }
 
-        // --- SISTEM INisIALISASI: LANGSUNG PANGGIL CLOUD DATA ---
         window.onload = function() {
             lucide.createIcons();
             handleRoleChange("NSD"); 
-            loadDataFromAPI(); // Load API Real-time
+            loadDataFromAPI(); 
         }
     </script>
+</body>
+</html>
     
