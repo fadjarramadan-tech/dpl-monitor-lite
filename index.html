@@ -957,42 +957,36 @@
         }
 
         // --- FUNGSI UPDATE DATA KE SHEETDB (PUT/PATCH via SheetDB) ---
-        async function updateAssetToAPI(id, updatedFields) {
-            try {
-                // Konversi data boolean/null menjadi string yang aman bagi spreadsheet
-                const payload = {
-                    statusProyek: updatedFields.statusProyek,
-                    timeline: updatedFields.timeline,
-                    kategoriAkuntansi: updatedFields.kategoriAkuntansi,
-                    keteranganTindakLanjut: updatedFields.keteranganTindakLanjut,
-                    isConfirmed: "true"
-                };
+async function updateAssetToAPI(id, updatedFields) {
+    try {
+        const payload = {
+            statusProyek: updatedFields.statusProyek,
+            timeline: updatedFields.timeline,
+            kategoriAkuntansi: updatedFields.kategoriAkuntansi,
+            keteranganTindakLanjut: updatedFields.keteranganTindakLanjut,
+            isConfirmed: "true" // Disimpan sebagai string ke Excel agar konsisten
+        };
 
-                const response = await fetch(`${API_URL}/id/${id}`, {
-                    method: 'PATCH',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ data: payload })
-                });
+        const response = await fetch(`${API_URL}/id/${id}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ data: payload })
+        });
 
-                if (!response.ok) throw new Error("Gagal menyimpan data ke API.");
-                
-                // Update state lokal jika API sukses
-                assets = assets.map(asset => {
-                    if (asset.id === id) {
-                        return { ...asset, ...updatedFields, isConfirmed: true };
-                    }
-                    return asset;
-                });
-
-                triggerNotification("Konfirmasi Wilayah Berhasil Tersimpan di Cloud!");
-                refreshAppUI();
-            } catch (error) {
-                console.error(error);
-                triggerNotification("Gagal Sinkronisasi Cloud. Coba lagi.", "error");
-            }
-        }
+        if (!response.ok) throw new Error("Gagal menyimpan data ke API.");
+        
+        triggerNotification("Konfirmasi Wilayah Berhasil Tersimpan di Cloud!");
+        
+        // --- PERBAIKAN: Muat ulang data langsung dari Cloud agar dashboard & progress bar sinkron ---
+        await loadDataFromAPI(); 
+        
+    } catch (error) {
+        console.error(error);
+        triggerNotification("Gagal Sinkronisasi Cloud. Coba lagi.", "error");
+    }
+}
 
         function handleRoleChange(role) {
             currentRole = role;
@@ -1372,25 +1366,33 @@
         function clearBulkSelection() { bulkSelection = []; renderLedgerTable(); }
 
         // --- MASS UPDATE VIA SHEETDB MULTIPLE REQUESTS ---
-        async function handleBulkUpdate(status) {
-            if (currentRole !== 'NSD') return;
-            triggerNotification("Memproses update massal ke cloud...");
-            
-            let recommendedCategory = status === 'Cancel' ? 'Beban Opex' : 'Kapitalisasi Aset Tetap';
-            
-            for (let id of bulkSelection) {
-                await fetch(`${API_URL}/id/${id}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        data: {
-                            statusProyek: status,
-                            kategoriAkuntansi: recommendedCategory,
-                            isConfirmed: "true"
-                        }
-                    })
-                });
-            }
+async function handleBulkUpdate(status) {
+    if (currentRole !== 'NSD') return;
+    triggerNotification("Memproses update massal ke cloud...");
+    
+    let recommendedCategory = status === 'Cancel' ? 'Beban Opex' : 'Kapitalisasi Aset Tetap';
+    
+    // Melakukan update satu per satu ke API berdasarkan aset yang dicentang
+    for (let id of bulkSelection) {
+        await fetch(`${API_URL}/id/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                data: {
+                    statusProyek: status,
+                    kategoriAkuntansi: recommendedCategory,
+                    isConfirmed: "true"
+                }
+            })
+        });
+    }
+
+    bulkSelection = [];
+    triggerNotification("Selesai memperbarui data massal!");
+    
+    // --- PERBAIKAN: Tarik data terbaru untuk merefresh chart/progress ---
+    await loadDataFromAPI(); 
+}
 
             bulkSelection = [];
             triggerNotification("Selesai memperbarui data massal!");
