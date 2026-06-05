@@ -887,6 +887,9 @@
         // Endpoint SheetDB API Anda
         const API_URL = "https://sheetdb.io/api/v1/z1j8a6iowxmhx";
 
+        // Password untuk mengunci akses Divisi NSD (Admin)
+        const ADMIN_PASSWORD = "BniNsd2026"; 
+
         let assets = [];
         let bulkSelection = [];
         let filterWilayah = "ALL";
@@ -914,7 +917,7 @@
             }, 3500);
         }
 
-        // --- FUNGSI MERIVASI DATA DARI SHEETDB (GET) - FIXED FOR PROGRESS BAR ---
+        // --- FUNGSI MEMUAT DATA DARI SHEETDB (GET) ---
         async function loadDataFromAPI() {
             triggerNotification("Memuat data dari Google Sheets...", "success");
             try {
@@ -922,9 +925,8 @@
                 if (!response.ok) throw new Error("Gagal mengambil data dari server API.");
                 const data = await response.json();
                 
-                // Mapping data dari string SheetDB ke tipe data yang sesuai di aplikasi
+                // Mapping data dari string SheetDB ke tipe data Boolean dan Angka asli di aplikasi
                 assets = data.map(item => {
-                    // Proteksi konversi nilai isConfirmed dari Google Sheets agar terbaca Boolean asli
                     let confirmedCheck = false;
                     if (item.isConfirmed) {
                         const strVal = String(item.isConfirmed).toLowerCase().trim();
@@ -955,19 +957,19 @@
                         timeline: item.timeline || "",
                         kategoriAkuntansi: item.kategoriAkuntansi || "",
                         keteranganTindakLanjut: item.keteranganTindakLanjut || "",
-                        isConfirmed: confirmedCheck // Sekarang sudah berupa true/false asli
+                        isConfirmed: confirmedCheck
                     };
                 });
 
                 triggerNotification("Data DPL Berhasil Disinkronisasi!");
-                refreshAppUI(); // Otomatis kalkulasi ulang progress bar dan tabel
+                refreshAppUI();
             } catch (error) {
                 console.error(error);
                 triggerNotification("Koneksi API Gagal. Periksa konfigurasi SheetDB.", "error");
             }
         }
 
-        // --- FUNGSI UPDATE DATA KE SHEETDB (PATCH via SheetDB) ---
+        // --- FUNGSI UPDATE DATA INDIVIDU KE SHEETDB (PATCH) ---
         async function updateAssetToAPI(id, updatedFields) {
             try {
                 const payload = {
@@ -975,7 +977,7 @@
                     timeline: updatedFields.timeline,
                     kategoriAkuntansi: updatedFields.kategoriAkuntansi,
                     keteranganTindakLanjut: updatedFields.keteranganTindakLanjut,
-                    isConfirmed: "true"
+                    isConfirmed: "true" 
                 };
 
                 const response = await fetch(`${API_URL}/id/${id}`, {
@@ -997,32 +999,50 @@
             }
         }
 
+        // --- MODIFIKASI: PROTEKSI AKSES ROLE DENGAN PROMPT PASSWORD ---
         function handleRoleChange(role) {
+            if (role === 'NSD') {
+                const inputPassword = prompt("Masukkan Password Otoritas Akses Divisi NSD:");
+                if (inputPassword !== ADMIN_PASSWORD) {
+                    alert("Akses Ditolak: Password yang Anda masukkan salah!");
+                    // Paksa dropdown kembali memilih 'Wilayah'
+                    document.getElementById('role-selector').value = "Wilayah";
+                    currentRole = "Wilayah";
+                    setRoleUIElements(false);
+                    return;
+                }
+            }
+
             currentRole = role;
+            setRoleUIElements(currentRole === 'NSD');
+            refreshAppUI();
+        }
+
+        // Fungsi pembantu untuk mengatur visibilitas elemen berdasarkan hak akses role
+        function setRoleUIElements(isAdmin) {
             const alertText = document.getElementById('role-alert-text');
             const alertBanner = document.getElementById('role-alert-banner');
             const navUploadBtn = document.getElementById('btn-nav-upload-csv');
             const sidebarUploadBtn = document.getElementById('btn-sidebar-upload');
             const sidebarRestoreBtn = document.getElementById('btn-sidebar-restore');
 
-            if (currentRole === 'NSD') {
+            if (isAdmin) {
                 alertBanner.className = "bg-blue-50 border-l-4 border-blue-500 rounded-xl p-4 mb-6 shadow-sm flex items-center justify-between no-print";
                 alertText.innerHTML = "Saat ini Anda menggunakan hak akses penuh <strong>Divisi NSD (Admin)</strong>. Semua fitur diaktifkan.";
                 navUploadBtn.classList.remove('hidden');
                 navUploadBtn.classList.add('flex');
-                sidebarUploadBtn.classList.remove('hidden');
-                sidebarRestoreBtn.classList.remove('hidden');
+                if (sidebarUploadBtn) sidebarUploadBtn.classList.remove('hidden');
+                if (sidebarRestoreBtn) sidebarRestoreBtn.classList.remove('hidden');
                 triggerNotification("Akses admin diaktifkan (Divisi NSD)");
             } else {
                 alertBanner.className = "bg-amber-50 border-l-4 border-amber-500 rounded-xl p-4 mb-6 shadow-sm flex items-center justify-between no-print";
                 alertText.innerHTML = "Saat ini Anda masuk sebagai <strong>Kantor Wilayah (User)</strong>. Mengonfirmasi progres aset DPL Wilayah Anda.";
                 navUploadBtn.classList.remove('flex');
                 navUploadBtn.classList.add('hidden');
-                sidebarUploadBtn.classList.add('hidden');
-                sidebarRestoreBtn.classList.add('hidden');
+                if (sidebarUploadBtn) sidebarUploadBtn.classList.add('hidden');
+                if (sidebarRestoreBtn) sidebarRestoreBtn.classList.add('hidden');
                 triggerNotification("Mode Akses Kantor Wilayah Aktif");
             }
-            refreshAppUI();
         }
 
         function formatIDR(num) {
@@ -1103,6 +1123,7 @@
             });
 
             const container = document.getElementById('regional-metrics-grid');
+            if(!container) return;
             container.innerHTML = "";
 
             Object.keys(metricsMap).sort().forEach(wName => {
@@ -1142,6 +1163,7 @@
 
         function populateRegionDropdown() {
             const select = document.getElementById('filter-region-select');
+            if(!select) return;
             const currentSelected = select.value;
             const listWilayah = [...new Set(assets.map(a => a.wilayah || "Wilayah Kerja"))].sort();
             
@@ -1155,21 +1177,26 @@
 
         function selectRegionFilter(regionName) {
             filterWilayah = filterWilayah === regionName ? 'ALL' : regionName;
-            document.getElementById('filter-region-select').value = filterWilayah;
+            const dropdown = document.getElementById('filter-region-select');
+            if(dropdown) dropdown.value = filterWilayah;
             handleSearchFilterChange();
         }
 
         function getFilteredAssets() {
-            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            const searchInput = document.getElementById('search-input');
+            const searchTerm = searchInput ? searchInput.value.toLowerCase() : "";
             const filterJenis = document.getElementById('filter-jenis-select').value;
             const filterUrgency = document.getElementById('filter-urgency-select').value;
             const filterStatus = document.getElementById('filter-status-select').value;
             const filterRegion = document.getElementById('filter-region-select').value;
 
-            if (searchTerm || filterJenis !== 'ALL' || filterUrgency !== 'ALL' || filterStatus !== 'ALL' || filterRegion !== 'ALL') {
-                document.getElementById('reset-filters-bar').classList.remove('hidden');
-            } else {
-                document.getElementById('reset-filters-bar').classList.add('hidden');
+            const resetBar = document.getElementById('reset-filters-bar');
+            if (resetBar) {
+                if (searchTerm || filterJenis !== 'ALL' || filterUrgency !== 'ALL' || filterStatus !== 'ALL' || filterRegion !== 'ALL') {
+                    resetBar.classList.remove('hidden');
+                } else {
+                    resetBar.classList.add('hidden');
+                }
             }
 
             return assets.filter(asset => {
@@ -1185,7 +1212,8 @@
         }
 
         function handleSearchFilterChange() {
-            filterWilayah = document.getElementById('filter-region-select').value;
+            const dropdown = document.getElementById('filter-region-select');
+            if(dropdown) filterWilayah = dropdown.value;
             populateRegionCards();
             renderLedgerTable();
         }
@@ -1211,6 +1239,7 @@
         function renderLedgerTable() {
             const filtered = getFilteredAssets();
             const tbody = document.getElementById('ledger-table-tbody');
+            if(!tbody) return;
             tbody.innerHTML = "";
 
             document.getElementById('table-results-label').textContent = `Daftar Kerja Monitoring (Ditemukan ${filtered.length} Aset)`;
@@ -1265,6 +1294,7 @@
 
         function renderQuickAttentionTable() {
             const tbody = document.getElementById('quick-attention-tbody');
+            if(!tbody) return;
             tbody.innerHTML = "";
             const urgentItems = assets.filter(a => isCritical(a) && !a.isConfirmed).slice(0, 4);
 
@@ -1363,7 +1393,7 @@
             renderLedgerTable();
         }
 
-        // --- PEMBARUAN FUNGSI MASSAL (SUDAH BERSIH DAN STRUKTURAL) ---
+        // --- PEMBARUAN MASSAL KE CLOUD VIA SINKRONISASI API ---
         async function handleBulkUpdate(status) {
             if (currentRole !== 'NSD') return;
             triggerNotification("Memproses update massal ke cloud...");
@@ -1391,6 +1421,7 @@
 
         function updateBulkPanelUI() {
             const panel = document.getElementById('bulk-actions-panel');
+            if(!panel) return;
             document.getElementById('selected-assets-count').textContent = bulkSelection.length;
             if (bulkSelection.length > 0 && currentRole === 'NSD') panel.classList.remove('hidden');
             else panel.classList.add('hidden');
@@ -1398,32 +1429,97 @@
 
         function clearBulkSelection() { bulkSelection = []; renderLedgerTable(); }
 
+        // --- MODIFIKASI: UTILITY EKSPOR HASIL REAL-TIME SESUAI SPREADSHEET ---
+        function handleExportCSV() {
+            if (assets.length === 0) {
+                triggerNotification("Gagal ekspor: Tidak ada data aset yang tersedia.", "error");
+                return;
+            }
+
+            const csvHeaders = [
+              "ID", "Entity", "Unit", "Kelas", "Nomor Aset", "NIB", "Tanggal Perolehan", "Aging", "Range", 
+              "Jenis Aset", "Keterangan 1", "Keterangan 2", "Keterangan 3", "Lokasi", "Wilayah", "Harga Perolehan", "Perusahaan/Vendor",
+              "Status Proyek", "Timeline Selesai", "Kategori Akuntansi", "Keterangan Tindak Lanjut", "Is Confirmed"
+            ].join(",");
+
+            const csvRows = assets.map(a => {
+              return [
+                a.id,
+                a.entity,
+                a.unit,
+                a.kelas,
+                `"${a.nomorAset}"`,
+                `"${a.nib}"`,
+                a.tglPerolehan,
+                a.aging,
+                `"${a.range}"`,
+                `"${a.jenisAset}"`,
+                `"${a.ket1.replace(/"/g, '""')}"`,
+                `"${a.ket2.replace(/"/g, '""')}"`,
+                `"${a.ket3.replace(/"/g, '""')}"`,
+                `"${a.lokasi.replace(/"/g, '""')}"`,
+                `"${a.wilayah}"`,
+                a.hargaPerolehan,
+                `"${a.perusahaan.replace(/"/g, '""')}"`,
+                `"${a.statusProyek || 'BELUM KONFIRMASI'}"`,
+                `"${a.timeline || '-'}"`,
+                `"${a.kategoriAkuntansi || '-'}"`,
+                `"${a.keteranganTindakLanjut || '-'}"`,
+                a.isConfirmed ? "TRUE" : "FALSE"
+              ].join(",");
+            });
+
+            // Format BOM UTF-8 agar Excel langsung membaca karakter dan tanda baca dengan rapi
+            const csvContent = "\uFEFF" + [csvHeaders, ...csvRows].join("\n");
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", "Laporan_Konfirmasi_Aset_DPL_April_2026.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            triggerNotification("File CSV Laporan akhir berhasil diekspor dari cloud!");
+        }
+
         function renderOfficialLetterDraft() {
             const doneAssets = assets.filter(a => a.statusProyek === 'Done');
             const ongoingAssets = assets.filter(a => a.statusProyek === 'On Going');
             const cancelAssets = assets.filter(a => a.statusProyek === 'Cancel');
             const confirmedAssets = assets.filter(a => a.isConfirmed);
 
+            const doneVal = doneAssets.reduce((acc, a) => acc + a.hargaPerolehan, 0);
+            const ongoingVal = ongoingAssets.reduce((acc, a) => acc + a.hargaPerolehan, 0);
+            const cancelVal = cancelAssets.reduce((acc, a) => acc + a.hargaPerolehan, 0);
+            const confirmedVal = confirmedAssets.reduce((acc, a) => acc + a.hargaPerolehan, 0);
+
             document.getElementById('report-done-count').textContent = doneAssets.length;
+            document.getElementById('report-done-val').textContent = formatIDR(doneVal);
             document.getElementById('report-ongoing-count').textContent = ongoingAssets.length;
+            document.getElementById('report-ongoing-val').textContent = formatIDR(ongoingVal);
             document.getElementById('report-cancel-count').textContent = cancelAssets.length;
+            document.getElementById('report-cancel-val').textContent = formatIDR(cancelVal);
             document.getElementById('report-confirmed-count').textContent = confirmedAssets.length;
+            document.getElementById('report-confirmed-val').textContent = formatIDR(confirmedVal);
 
             const rate = assets.length ? Math.round((confirmedAssets.length / assets.length) * 100) : 0;
             document.getElementById('report-rate-badge').textContent = `Progress: ${rate}% Terkonfirmasi`;
 
             const tbody = document.getElementById('report-attachment-tbody');
+            if(!tbody) return;
             tbody.innerHTML = "";
             assets.forEach(a => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td class="p-1 border font-mono">${a.nomorAset}</td>
                     <td class="p-1 border text-center">${a.kelas}</td>
-                    <td class="p-1 border">${a.header || a.ket1}</td>
+                    <td class="p-1 border">${a.ket1}</td>
                     <td class="p-1 border text-right">${a.aging} H</td>
                     <td class="p-1 border text-right">${formatIDR(a.hargaPerolehan)}</td>
                     <td class="p-1 border font-bold">${a.statusProyek || "BELUM"}</td>
                     <td class="p-1 border text-xs">${a.keteranganTindakLanjut || "-"}</td>
+                    <td class="p-1 border text-xs">-</td>
                     <td class="p-1 border text-xs">${a.kategoriAkuntansi || "-"}</td>
                 `;
                 tbody.appendChild(tr);
@@ -1438,17 +1534,19 @@
             if (activeBtn) activeBtn.className = "px-3 py-2 rounded-lg text-sm font-semibold bg-bni-lightTeal text-bni-teal";
 
             ['dashboard', 'workspace', 'report', 'instructions'].forEach(tab => {
-                document.getElementById(`tab-content-${tab}`).classList.add('hidden');
+                const content = document.getElementById(`tab-content-${tab}`);
+                if(content) content.classList.add('hidden');
             });
-            document.getElementById(`tab-content-${targetTab}`).classList.remove('hidden');
+            const targetContent = document.getElementById(`tab-content-${targetTab}`);
+            if(targetContent) targetContent.classList.remove('hidden');
         }
 
         window.onload = function() {
             lucide.createIcons();
-            handleRoleChange("NSD"); 
+            // Default load diarahkan ke 'Wilayah' agar aman dari bypass refresh halaman
+            handleRoleChange("Wilayah"); 
             loadDataFromAPI(); 
         }
     </script>
 </body>
 </html>
-    
