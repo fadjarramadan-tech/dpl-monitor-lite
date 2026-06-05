@@ -919,20 +919,18 @@
             }, 3500);
         }
 
-       // --- FUNGSI MERIVASI DATA DARI GOOGLE APPS SCRIPT (GET) - ANTI CORS TOTAL ---
+       // --- FUNGSI MERIVASI DATA DARI GOOGLE APPS SCRIPT (GET) - ANTI CRASH TIPE DATA ---
         async function loadDataFromAPI() {
             triggerNotification("Memuat data dari Google Sheets...", "success");
             try {
-                // Konfigurasi fetch super polos agar diperlakukan sebagai Simple Request oleh browser
                 const response = await fetch(API_URL, {
                     method: "GET",
-                    redirect: "follow" // Wajib mengikuti redirect 302 dari server Google
+                    redirect: "follow"
                 });
                 
                 if (!response.ok) throw new Error("Gagal mengambil data dari server API.");
                 const data = await response.json();
                 
-                // Mapping data dari string ke tipe data yang sesuai di aplikasi
                 assets = data.map(item => {
                     let confirmedCheck = false;
                     if (item.isConfirmed) {
@@ -942,11 +940,15 @@
                         }
                     }
 
-                    let jenis = item.jenisAset || "Inventaris";
-                    const ket1Low = String(item.ket1 || "").toLowerCase();
-                    const ket2Low = String(item.ket2 || "").toLowerCase();
-                    const jenisLow = String(item.jenisAset || "").toLowerCase();
+                    // --- PROTEKSI UTAMA: PAKSA SEMUA KOLOM TEKS MENJADI STRING AMAN ---
+                    const noAsetClean = item.nomorAset !== undefined && item.nomorAset !== null ? String(item.nomorAset).trim() : "";
+                    const ket1Low = item.ket1 !== undefined && item.ket1 !== null ? String(item.ket1).toLowerCase() : "";
+                    const ket2Low = item.ket2 !== undefined && item.ket2 !== null ? String(item.ket2).toLowerCase() : "";
+                    const jenisLow = item.jenisAset !== undefined && item.jenisAset !== null ? String(item.jenisAset).toLowerCase() : "";
+                    const lokasiClean = item.lokasi !== undefined && item.lokasi !== null ? String(item.lokasi) : "";
 
+                    // DETEKSI JENIS ASET SECARA DINAMIS
+                    let jenis = item.jenisAset || "Inventaris";
                     if (
                         jenisLow.includes("kendaraan") || 
                         jenisLow.includes("mobil") || 
@@ -956,7 +958,7 @@
                     ) {
                         jenis = "Kendaraan";
                     } else if (
-                        item.kelas === "0021" || 
+                        String(item.kelas) === "0021" || 
                         jenisLow.includes("bangunan") ||
                         ket1Low.includes("gedung") || 
                         ket1Low.includes("pembangunan") || 
@@ -967,27 +969,27 @@
                     }
 
                     return {
-                        id: item.id || item.nomorAset,
-                        entity: item.entity || "",
-                        unit: item.unit || "",
-                        kelas: item.kelas || "",
-                        nomorAset: item.nomorAset || "",
-                        nib: item.nib || "-",
+                        id: item.id !== undefined && item.id !== null ? String(item.id) : noAsetClean,
+                        entity: item.entity !== undefined && item.entity !== null ? String(item.entity) : "",
+                        unit: item.unit !== undefined && item.unit !== null ? String(item.unit) : "",
+                        kelas: item.kelas !== undefined && item.kelas !== null ? String(item.kelas) : "",
+                        nomorAset: noAsetClean, // Sudah dijamin bertipe String murni
+                        nib: item.nib !== undefined && item.nib !== null ? String(item.nib) : "-",
                         tglPerolehan: item.tglPerolehan || "",
                         aging: parseInt(item.aging) || 0,
-                        range: item.range || "",
-                        ket1: item.ket1 || "",
-                        ket2: item.ket2 || "",
-                        ket3: item.ket3 || "",
-                        lokasi: item.lokasi || "",
-                        wilayah: item.wilayah || "Wilayah Kerja",
+                        range: item.range !== undefined && item.range !== null ? String(item.range) : "",
+                        ket1: item.ket1 !== undefined && item.ket1 !== null ? String(item.ket1) : "",
+                        ket2: item.ket2 !== undefined && item.ket2 !== null ? String(item.ket2) : "",
+                        ket3: item.ket3 !== undefined && item.ket3 !== null ? String(item.ket3) : "",
+                        lokasi: lokasiClean,
+                        wilayah: item.wilayah !== undefined && item.wilayah !== null ? String(item.wilayah) : "Wilayah Kerja",
                         hargaPerolehan: parseFloat(item.hargaPerolehan) || 0,
-                        perusahaan: item.perusahaan || "",
+                        perusahaan: item.perusahaan !== undefined && item.perusahaan !== null ? String(item.perusahaan) : "",
                         jenisAset: jenis,
-                        statusProyek: item.statusProyek || "",
-                        timeline: item.timeline || "",
-                        kategoriAkuntansi: item.kategoriAkuntansi || "",
-                        keteranganTindakLanjut: item.keteranganTindakLanjut || "",
+                        statusProyek: item.statusProyek !== undefined && item.statusProyek !== null ? String(item.statusProyek) : "",
+                        timeline: item.timeline !== undefined && item.timeline !== null ? String(item.timeline) : "",
+                        kategoriAkuntansi: item.kategoriAkuntansi !== undefined && item.kategoriAkuntansi !== null ? String(item.kategoriAkuntansi) : "",
+                        keteranganTindakLanjut: item.keteranganTindakLanjut !== undefined && item.keteranganTindakLanjut !== null ? String(item.keteranganTindakLanjut) : "",
                         isConfirmed: confirmedCheck
                     };
                 });
@@ -999,7 +1001,6 @@
                 triggerNotification("Koneksi API Gagal. Periksa konfigurasi Deployment Google Script Anda.", "error");
             }
         }
-
         // --- FUNGSI UPDATE DATA KE GOOGLE APPS SCRIPT (FREE UNLIMITED) ---
         async function updateAssetToAPI(id, updatedFields) {
             try {
