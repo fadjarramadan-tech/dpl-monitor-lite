@@ -919,25 +919,33 @@
             }, 3500);
         }
 
-        // --- FUNGSI MERIVASI DATA DARI SHEETDB (GET) ---
+       // --- FUNGSI MERIVASI DATA DARI GOOGLE APPS SCRIPT (GET) - FIXED CORS ---
         async function loadDataFromAPI() {
             triggerNotification("Memuat data dari Google Sheets...", "success");
             try {
-                const response = await fetch(API_URL);
+                // TAMBAHKAN BERBAGAI PARAMETER PROTESI CORS DI BAWAH INI
+                const response = await fetch(API_URL, {
+                    method: "GET",
+                    mode: "cors",
+                    redirect: "follow", // Wajib agar browser mau mengikuti pengalihan (redirect 302) Google
+                    headers: {
+                        "Content-Type": "text/plain" // Menggunakan text/plain untuk menghindari pre-flight check
+                    }
+                });
+                
                 if (!response.ok) throw new Error("Gagal mengambil data dari server API.");
                 const data = await response.json();
                 
+                // Mapping data dari string ke tipe data yang sesuai di aplikasi
                 assets = data.map(item => {
-                    // Proteksi konversi nilai isConfirmed dari Google Sheets agar terbaca Boolean asli
                     let confirmedCheck = false;
                     if (item.isConfirmed) {
                         const strVal = String(item.isConfirmed).toLowerCase().trim();
-                        if (strVal === "true" || strVal === "1" || strVal === "yes") {
+                        if (strVal === "true" || strVal === "1" || strVal === "yes" || strVal === "true") {
                             confirmedCheck = true;
                         }
                     }
 
-                    // DETEKSI JENIS ASET SECARA DINAMIS
                     let jenis = item.jenisAset || "Inventaris";
                     const ket1Low = String(item.ket1 || "").toLowerCase();
                     const ket2Low = String(item.ket2 || "").toLowerCase();
@@ -992,7 +1000,7 @@
                 refreshAppUI();
             } catch (error) {
                 console.error(error);
-                triggerNotification("Koneksi API Gagal. Periksa konfigurasi SheetDB.", "error");
+                triggerNotification("Koneksi API Gagal. Periksa konfigurasi CORS Google Script.", "error");
             }
         }
 
