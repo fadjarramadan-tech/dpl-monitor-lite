@@ -914,7 +914,7 @@
             }, 3500);
         }
 
-        // --- FUNGSI MERIVASI DATA DARI SHEETDB (GET) ---
+        // --- FUNGSI MERIVASI DATA DARI SHEETDB (GET) - FIXED FOR PROGRESS BAR ---
         async function loadDataFromAPI() {
             triggerNotification("Memuat data dari Google Sheets...", "success");
             try {
@@ -923,36 +923,47 @@
                 const data = await response.json();
                 
                 // Mapping data dari string SheetDB ke tipe data yang sesuai di aplikasi
-                assets = data.map(item => ({
-                    id: item.id || item.nomorAset,
-                    entity: item.entity || "",
-                    unit: item.unit || "",
-                    kelas: item.kelas || "",
-                    nomorAset: item.nomorAset || "",
-                    nib: item.nib || "-",
-                    tglPerolehan: item.tglPerolehan || "",
-                    aging: parseInt(item.aging) || 0,
-                    range: item.range || "",
-                    ket1: item.ket1 || "",
-                    ket2: item.ket2 || "",
-                    ket3: item.ket3 || "",
-                    lokasi: item.lokasi || "",
-                    wilayah: item.wilayah || "Wilayah Kerja",
-                    hargaPerolehan: parseFloat(item.hargaPerolehan) || 0,
-                    perusahaan: item.perusahaan || "",
-                    jenisAset: item.jenisAset || "Inventaris",
-                    statusProyek: item.statusProyek || "",
-                    timeline: item.timeline || "",
-                    kategoriAkuntansi: item.kategoriAkuntansi || "",
-                    keteranganTindakLanjut: item.keteranganTindakLanjut || "",
-                    isConfirmed: item.isConfirmed === "true" || item.isConfirmed === true
-                }));
+                assets = data.map(item => {
+                    // Proteksi konversi nilai isConfirmed dari Google Sheets agar terbaca Boolean asli
+                    let confirmedCheck = false;
+                    if (item.isConfirmed) {
+                        const strVal = String(item.isConfirmed).toLowerCase().trim();
+                        if (strVal === "true" || strVal === "1" || strVal === "yes") {
+                            confirmedCheck = true;
+                        }
+                    }
+
+                    return {
+                        id: item.id || item.nomorAset,
+                        entity: item.entity || "",
+                        unit: item.unit || "",
+                        kelas: item.kelas || "",
+                        nomorAset: item.nomorAset || "",
+                        nib: item.nib || "-",
+                        tglPerolehan: item.tglPerolehan || "",
+                        aging: parseInt(item.aging) || 0,
+                        range: item.range || "",
+                        ket1: item.ket1 || "",
+                        ket2: item.ket2 || "",
+                        ket3: item.ket3 || "",
+                        lokasi: item.lokasi || "",
+                        wilayah: item.wilayah || "Wilayah Kerja",
+                        hargaPerolehan: parseFloat(item.hargaPerolehan) || 0,
+                        perusahaan: item.perusahaan || "",
+                        jenisAset: item.jenisAset || "Inventaris",
+                        statusProyek: item.statusProyek || "",
+                        timeline: item.timeline || "",
+                        kategoriAkuntansi: item.kategoriAkuntansi || "",
+                        keteranganTindakLanjut: item.keteranganTindakLanjut || "",
+                        isConfirmed: confirmedCheck // Sekarang sudah berupa true/false asli
+                    };
+                });
 
                 triggerNotification("Data DPL Berhasil Disinkronisasi!");
-                refreshAppUI();
+                refreshAppUI(); // Otomatis kalkulasi ulang progress bar dan tabel
             } catch (error) {
                 console.error(error);
-                triggerNotification("Koneksi API Gagal. Menggunakan data cadangan lokal.", "error");
+                triggerNotification("Koneksi API Gagal. Periksa konfigurasi SheetDB.", "error");
             }
         }
 
