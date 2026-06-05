@@ -383,6 +383,7 @@
                       <option value="ALL">Semua Jenis Aset</option>
                       <option value="Bangunan">Hanya Bangunan</option>
                       <option value="Inventaris">Hanya Inventaris</option>
+                      <option value="Kendaraan">Hanya Kendaraan</option>
                     </select>
                   </div>
 
@@ -918,6 +919,7 @@
         }
 
         // --- FUNGSI MEMUAT DATA DARI SHEETDB (GET) ---
+       // --- FUNGSI MERIVASI DATA DARI SHEETDB (GET) ---
         async function loadDataFromAPI() {
             triggerNotification("Memuat data dari Google Sheets...", "success");
             try {
@@ -925,7 +927,6 @@
                 if (!response.ok) throw new Error("Gagal mengambil data dari server API.");
                 const data = await response.json();
                 
-                // Mapping data dari string SheetDB ke tipe data Boolean dan Angka asli di aplikasi
                 assets = data.map(item => {
                     let confirmedCheck = false;
                     if (item.isConfirmed) {
@@ -933,6 +934,31 @@
                         if (strVal === "true" || strVal === "1" || strVal === "yes") {
                             confirmedCheck = true;
                         }
+                    }
+
+                    // --- LOGIKA BARU: DETEKSI JENIS ASET (BANGUNAN, KENDARAAN, ATAU INVENTARIS) ---
+                    let jenis = item.jenisAset || "Inventaris";
+                    const ket1Low = String(item.ket1 || "").toLowerCase();
+                    const ket2Low = String(item.ket2 || "").toLowerCase();
+                    const jenisLow = String(item.jenisAset || "").toLowerCase();
+
+                    if (
+                        jenisLow.includes("kendaraan") || 
+                        jenisLow.includes("mobil") || 
+                        jenisLow.includes("motor") ||
+                        ket1Low.includes("pengadaan kendaraan") ||
+                        ket1Low.includes("mobil dinas")
+                    ) {
+                        jenis = "Kendaraan";
+                    } else if (
+                        item.kelas === "0021" || 
+                        jenisLow.includes("bangunan") ||
+                        ket1Low.includes("gedung") || 
+                        ket1Low.includes("pembangunan") || 
+                        ket2Low.includes("bangunan") ||
+                        ket1Low.includes("renovasi")
+                    ) {
+                        jenis = "Bangunan";
                     }
 
                     return {
@@ -952,7 +978,7 @@
                         wilayah: item.wilayah || "Wilayah Kerja",
                         hargaPerolehan: parseFloat(item.hargaPerolehan) || 0,
                         perusahaan: item.perusahaan || "",
-                        jenisAset: item.jenisAset || "Inventaris",
+                        jenisAset: jenis, // Menggunakan variabel jenis hasil filter dinamis di atas
                         statusProyek: item.statusProyek || "",
                         timeline: item.timeline || "",
                         kategoriAkuntansi: item.kategoriAkuntansi || "",
@@ -1054,12 +1080,12 @@
         }
 
         function isCritical(asset) {
-            if (asset.jenisAset === 'Bangunan' || asset.kelas === '0021') {
-              return asset.aging > 360;
-            } else {
-              return asset.aging > 180;
-            }
-        }
+    if (asset.jenisAset === 'Bangunan' || asset.kelas === '0021') {
+      return asset.aging > 360;
+    } else {
+      return asset.aging > 180; // Kendaraan otomatis akan masuk ke sini (>180 Hari dianggap kritis)
+    }
+}
 
         function refreshAppUI() {
             calculateMetricsAndProgress();
