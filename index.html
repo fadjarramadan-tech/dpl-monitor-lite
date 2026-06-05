@@ -1372,6 +1372,13 @@ async function handleBulkUpdate(status) {
     
     let recommendedCategory = status === 'Cancel' ? 'Beban Opex' : 'Kapitalisasi Aset Tetap';
     
+    // --- MASS UPDATE VIA SHEETDB MULTIPLE REQUESTS ---
+async function handleBulkUpdate(status) {
+    if (currentRole !== 'NSD') return;
+    triggerNotification("Memproses update massal ke cloud...");
+    
+    let recommendedCategory = status === 'Cancel' ? 'Beban Opex' : 'Kapitalisasi Aset Tetap';
+    
     // Melakukan update satu per satu ke API berdasarkan aset yang dicentang
     for (let id of bulkSelection) {
         await fetch(`${API_URL}/id/${id}`, {
@@ -1387,17 +1394,14 @@ async function handleBulkUpdate(status) {
         });
     }
 
+    // Semua proses di bawah ini dilakukan tepat setelah loop selesai, 
+    // dan berada di dalam satu kurung fungsi yang sama.
     bulkSelection = [];
     triggerNotification("Selesai memperbarui data massal!");
     
-    // --- PERBAIKAN: Tarik data terbaru untuk merefresh chart/progress ---
+    // Tarik data terbaru untuk merefresh chart/progress
     await loadDataFromAPI(); 
 }
-
-            bulkSelection = [];
-            triggerNotification("Selesai memperbarui data massal!");
-            loadDataFromAPI(); // Muat ulang dari Cloud
-        }
 
         function renderOfficialLetterDraft() {
             const doneAssets = assets.filter(a => a.statusProyek === 'Done');
